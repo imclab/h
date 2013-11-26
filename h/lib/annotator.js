@@ -7,7 +7,7 @@
 ** Dual licensed under the MIT and GPLv3 licenses.
 ** https://github.com/okfn/annotator/blob/master/LICENSE
 **
-** Built at: 2013-11-26 10:34:26Z
+** Built at: 2013-11-26 11:10:53Z
 */
 
 
@@ -895,7 +895,7 @@
     };
 
     Highlight.prototype.getBottom = function() {
-      return getTop() + getBottom();
+      return this.getTop() + this.getBottom();
     };
 
     Highlight.prototype.scrollTo = function() {
