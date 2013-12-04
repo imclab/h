@@ -42,9 +42,11 @@ _Annotator = this.Annotator
 # Fake two-phase / pagination support, used for HTML documents
 class DummyDocumentAccess
 
+  constructor: (@rootNode) ->
   @applicable: -> true
   getPageIndex: -> 0
   getPageCount: -> 1
+  getPageRoot: -> @rootNode
   getPageIndexForPos: -> 0
   isPageMapped: -> true
   scan: ->
@@ -116,10 +118,13 @@ class Annotator extends Delegator
     this._setupDynamicStyle()
 
     # Perform initial DOM scan, unless told not to.
-    this._scan() unless @options.noScan
+    this._scan "Created Annotator" unless @options.noScan
 
     # Create adder
     this.adder = $(this.html.adder).appendTo(@wrapper).hide()
+
+    # Create bucket for orphan annotations
+    this.orphans = []
 
   # Initializes the available document access strategies
   _setupDocumentAccessStrategies: ->
@@ -127,35 +132,36 @@ class Annotator extends Delegator
       # Default dummy strategy for simple HTML documents.
       # The generic fallback.
       name: "Dummy"
-      mapper: DummyDocumentAccess
+      applicable: -> true
+      get: => new DummyDocumentAccess @wrapper[0]
     ]
 
     this
 
   # Initializes the components used for analyzing the document
   _chooseAccessPolicy: ->
-    if @domMapper? then return
+    # If we have already initialized policy, don't bother.
+    return if @domMapper?
 
     # Go over the available strategies
     for s in @documentAccessStrategies
       # Can we use this strategy for this document?
-      if s.mapper.applicable()
+      if s.applicable()
         @documentAccessStrategy = s
         console.log "Selected document access strategy: " + s.name
-        @domMapper = new s.mapper()
+        @domMapper = s.get()
         @anchors = {}
         addEventListener "docPageMapped", (evt) =>
           @_realizePage evt.pageIndex
         addEventListener "docPageUnmapped", (evt) =>
           @_virtualizePage evt.pageIndex
-        s.init?()
         return this
 
   # Perform a scan of the DOM. Required for finding anchors.
-  _scan: ->
+  _scan: (reason) ->
     # If we haven't yet chosen a document access strategy, do so now.
     this._chooseAccessPolicy() unless @domMapper
-    @pendingScan = @domMapper.scan()
+    @pendingScan = @domMapper.scan reason
     if @pendingScan?
       @pendingScan.then => @enableAnnotating()
     else
@@ -382,6 +388,15 @@ class Annotator extends Delegator
     unless annotation.target?
       throw new Error "Can not run setupAnnotation(). No target or selection available."
 
+    # Anchor this annotation
+    this.anchorAnnotation annotation
+
+    # Return the final form
+    annotation
+
+  # Creates the necessary anchors for the given annotation
+  anchorAnnotation: (annotation) ->
+
     annotation.quote = []
     annotation.anchors = []
 
@@ -411,6 +426,7 @@ class Annotator extends Delegator
         else
           console.log "Could not create anchor for annotation '",
             annotation.id, "'."
+          this.orphans.push annotation
       catch exception
         if exception.stack? then console.log exception.stack
         console.log exception.message
@@ -450,9 +466,16 @@ class Annotator extends Delegator
   #
   # Returns deleted annotation.
   deleteAnnotation: (annotation) ->
-    if annotation.anchors?    
-      for a in annotation.anchors
-        a.remove()
+    if annotation.anchors?
+      if annotation.anchors.length
+        # There were some anchors.
+        for a in annotation.anchors
+          a.remove()
+      else
+        # No anchors, this was an orphan. Remove from orphan list.
+        i = this.orphans.indexOf annotation
+        if i isnt -1
+          this.orphans[i..i] = []
 
     this.publish('annotationDeleted', [annotation])
     annotation
@@ -645,9 +668,9 @@ class Annotator extends Delegator
   onSuccessfulSelection: (event, immediate = false) ->
     # Check whether we got a proper event
     unless event?
-      throw "Called onSuccessfulSelection without an event!"
+      throw new Error "Called onSuccessfulSelection without an event!"
     unless event.targets?
-      throw "Called onSuccessulSelection with an event with missing targets!"
+      throw new Error "Called onSuccessulSelection with an event with missing targets!"
 
     # Are we allowed to create annotations?
     unless @canAnnotate
@@ -824,6 +847,35 @@ class Annotator extends Delegator
     # Go over all anchors related to this page
     for anchor in @anchors[index] ? []
       anchor.virtualize index
+
+  # Re-anchor all the annotations
+  _reanchorAnnotations: =>
+    console.log "Reanchoring all annotations."
+
+    # Phase 1: remove all the anchors
+
+    # We will collect all the annotations, starting from the orphan ones
+    annotations = @orphans.slice()
+
+    for page, anchors of @anchors  # Go over all the pages
+      for anchor in anchors.slice() # And all the anchors
+        # Get the annotation
+        annotation = anchor.annotation
+
+        # Add this annotation to our collection
+        annotations.push annotation unless annotation in annotations
+
+        # Remove this anchor from both the pages and the annotation
+        anchor.remove true
+
+    # Phase 2: re-anchor all annotations
+
+    for annotation in annotations # Go over all annotations
+      this.anchorAnnotation annotation # and anchor them
+
+    # Phase 3: send out notifications and updates
+
+    this.publish "annotationsLoaded", [annotations.slice()]
 
   onAnchorMouseover: (annotations, highlightType) ->
     #console.log "Mouse over annotations:", annotations
