@@ -49,7 +49,6 @@ class DummyDocumentAccess
   getPageRoot: -> @rootNode
   getPageIndexForPos: -> 0
   isPageMapped: -> true
-  scan: ->
 
 class Annotator extends Delegator
   # Events to be bound on Annotator#element.
@@ -117,8 +116,10 @@ class Annotator extends Delegator
     this._setupViewer()._setupEditor()
     this._setupDynamicStyle()
 
-    # Perform initial DOM scan, unless told not to.
-    this._scan "Created Annotator" unless @options.noScan
+    # Select a document access policy
+    this._chooseAccessPolicy()
+
+    this.enableAnnotating()
 
     # Create adder
     this.adder = $(this.html.adder).appendTo(@wrapper).hide()
@@ -140,9 +141,6 @@ class Annotator extends Delegator
 
   # Initializes the components used for analyzing the document
   _chooseAccessPolicy: ->
-    # If we have already initialized policy, don't bother.
-    return if @domMapper?
-
     # Go over the available strategies
     for s in @documentAccessStrategies
       # Can we use this strategy for this document?
@@ -156,16 +154,6 @@ class Annotator extends Delegator
         addEventListener "docPageUnmapped", (evt) =>
           @_virtualizePage evt.pageIndex
         return this
-
-  # Perform a scan of the DOM. Required for finding anchors.
-  _scan: (reason) ->
-    # If we haven't yet chosen a document access strategy, do so now.
-    this._chooseAccessPolicy() unless @domMapper
-    @pendingScan = @domMapper.scan reason
-    if @pendingScan?
-      @pendingScan.then => @enableAnnotating()
-    else
-      @enableAnnotating()
 
   # Wraps the children of @element in a @wrapper div. NOTE: This method will also
   # remove any script elements inside @element to prevent them re-executing.
@@ -508,17 +496,8 @@ class Annotator extends Delegator
     clone = annotations.slice()
 
     if annotations.length # Do we have to do something?
-      # Do we have a doc access strategy? If we don't have it yet, scan!
-      @_scan() unless @domMapper
-      if @pendingScan?    # Is there a pending scan?
-        # Schedule the parsing the annotations for
-        # when scan has finished
-        @pendingScan.then =>
-          #console.log "Document scan finished. Can start anchoring."
-          setTimeout => loader annotations
-      else # no pending scan
-        # We can start parsing them right away
-        loader annotations
+      setTimeout => loader annotations
+
     this
 
   # Public: Calls the Store#dumpAnnotations() method.

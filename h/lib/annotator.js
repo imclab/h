@@ -7,7 +7,7 @@
 ** Dual licensed under the MIT and GPLv3 licenses.
 ** https://github.com/okfn/annotator/blob/master/LICENSE
 **
-** Built at: 2013-12-04 04:44:49Z
+** Built at: 2013-12-04 05:46:10Z
 */
 
 
@@ -1038,8 +1038,6 @@
       return true;
     };
 
-    DummyDocumentAccess.prototype.scan = function() {};
-
     return DummyDocumentAccess;
 
   })();
@@ -1105,9 +1103,8 @@
       this._setupDocumentAccessStrategies();
       this._setupViewer()._setupEditor();
       this._setupDynamicStyle();
-      if (!this.options.noScan) {
-        this._scan("Created Annotator");
-      }
+      this._chooseAccessPolicy();
+      this.enableAnnotating();
       this.adder = $(this.html.adder).appendTo(this.wrapper).hide();
       this.orphans = [];
     }
@@ -1131,9 +1128,6 @@
     Annotator.prototype._chooseAccessPolicy = function() {
       var s, _k, _len2, _ref1,
         _this = this;
-      if (this.domMapper != null) {
-        return;
-      }
       _ref1 = this.documentAccessStrategies;
       for (_k = 0, _len2 = _ref1.length; _k < _len2; _k++) {
         s = _ref1[_k];
@@ -1150,21 +1144,6 @@
           });
           return this;
         }
-      }
-    };
-
-    Annotator.prototype._scan = function(reason) {
-      var _this = this;
-      if (!this.domMapper) {
-        this._chooseAccessPolicy();
-      }
-      this.pendingScan = this.domMapper.scan(reason);
-      if (this.pendingScan != null) {
-        return this.pendingScan.then(function() {
-          return _this.enableAnnotating();
-        });
-      } else {
-        return this.enableAnnotating();
       }
     };
 
@@ -1456,18 +1435,9 @@
       };
       clone = annotations.slice();
       if (annotations.length) {
-        if (!this.domMapper) {
-          this._scan();
-        }
-        if (this.pendingScan != null) {
-          this.pendingScan.then(function() {
-            return setTimeout(function() {
-              return loader(annotations);
-            });
-          });
-        } else {
-          loader(annotations);
-        }
+        setTimeout(function() {
+          return loader(annotations);
+        });
       }
       return this;
     };

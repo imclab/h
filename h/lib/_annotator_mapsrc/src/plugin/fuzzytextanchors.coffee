@@ -5,9 +5,6 @@ class Annotator.Plugin.FuzzyTextAnchors extends Annotator.Plugin
     # Do we have the basic text anchors plugin loaded?
     unless @annotator.plugins.TextAnchors
       throw "The FuzzyTextAnchors Annotator plugin requires the TextAnchors plugin."
-    unless @annotator.plugins.DomTextMapper
-      throw "The FuzzyTextAnchors Annotator plugin requires the DomTextMapper plugin."
-
     # Initialize the text matcher library
     @textFinder = new DomTextMatcher => @annotator.domMapper.getCorpus()
 
@@ -27,6 +24,9 @@ class Annotator.Plugin.FuzzyTextAnchors extends Annotator.Plugin
       code: this.fuzzyMatching
 
   twoPhaseFuzzyMatching: (annotation, target) =>
+    # We need the corpus from the document.
+    unless @annotator.domMapper.getCorpus
+      return null
     # Fetch the quote and the context
     quoteSelector = @annotator.findSelector target.selector, "TextQuoteSelector"
     prefix = quoteSelector?.prefix
@@ -70,6 +70,9 @@ class Annotator.Plugin.FuzzyTextAnchors extends Annotator.Plugin
       unless match.exact then match.exactExceptCase
 
   fuzzyMatching: (annotation, target) =>
+    # We need the corpus from the document.
+    unless @annotator.domMapper.getCorpus
+      return null
     # Fetch the quote
     quoteSelector = @annotator.findSelector target.selector, "TextQuoteSelector"
     quote = quoteSelector?.exact

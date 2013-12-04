@@ -7,7 +7,7 @@
 ** Dual licensed under the MIT and GPLv3 licenses.
 ** https://github.com/okfn/annotator/blob/master/LICENSE
 **
-** Built at: 2013-12-04 04:45:11Z
+** Built at: 2013-12-04 05:26:47Z
 */
 
 
@@ -49,6 +49,7 @@
           options = $.extend({}, defaultOptions, _this.options.options);
           mapper = new window.DomTextMapper(options);
           options.rootNode.addEventListener("corpusChange", _this.annotator._reanchorAnnotations);
+          mapper.scan("we are initializing d-t-m");
           return mapper;
         }
       });
